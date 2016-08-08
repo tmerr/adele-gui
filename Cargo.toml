@@ -1,0 +1,9 @@
+[package]
+name = "adele-gui"
+version = "0.1.0"
+authors = ["Trevor Merrifield <trevorm42@gmail.com>"]
+
+[dependencies]
+conrod = "0.38.2"
+piston_window = "0.51.1"
+find_folder = "*"
