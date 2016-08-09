@@ -2,7 +2,7 @@
 extern crate piston_window;
 extern crate find_folder;
 
-use conrod::{Canvas, Oval, Widget, color};
+use conrod::{Canvas, Widget, color};
 use piston_window::{EventLoop, OpenGL, PistonWindow, UpdateEvent, WindowSettings};
 
 mod graph_widget;
@@ -50,7 +50,7 @@ fn main() {
 
 
 fn set_ui(ui: &mut conrod::UiCell) {
-    use conrod::{Button, Colorable, Labelable, Positionable, Sizeable, WidgetMatrix};
+    use conrod::{Colorable, Positionable};
 
     Canvas::new()
         .color(color::rgb(0.97, 0.97, 0.97))

@@ -7,7 +7,6 @@ use conrod::{
     Point, Scalar
 };
 
-use std::io::{self, Write};
 use conrod;
 
 
@@ -247,7 +246,7 @@ impl Widget for GraphWidget {
 
                 event::Widget::Press(event::Press {
                     button: event::Button::Mouse(mouse::Button::Left, xy),
-                    modifiers: modifiers
+                    modifiers
                 }) => {
                     let clicked_vertex = vertex_at_point(&state, in_widget_space(xy)).clone();
 
@@ -289,7 +288,7 @@ impl Widget for GraphWidget {
                                 (*state.graph.vertices[index]).position[1] = vpos[1] + drag.total_delta_xy[1];
                             }),
 
-                        Mode::CreatingEdge(index, line_slot, arrow_slot, target) => {
+                        Mode::CreatingEdge(index, line_slot, arrow_slot, _) => {
                             state.update(|state| {
                                 state.mode = Mode::CreatingEdge(index, line_slot, arrow_slot, in_widget_space(drag.to));
                             });
@@ -315,7 +314,7 @@ impl Widget for GraphWidget {
 
                 event::Widget::Press(event::Press {
                     button: event::Button::Mouse(mouse::Button::Right, xy),
-                    modifiers: modifiers
+                    ..
                 }) => {
                     if let Mode::Idle = state.mode {
                         if let Some(vindex) = vertex_at_point(&state, in_widget_space(xy)) {
