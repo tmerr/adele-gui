@@ -157,7 +157,7 @@ impl Widget for GraphWidget {
             outline_idx: IndexSlot::new()
         });
 
-        let v1 = Box::new(Vertex {
+        let mut v1 = Box::new(Vertex {
             to: vec![(&mut *v0, IndexSlot::new(), IndexSlot::new())],
             from: vec![],
             label: "Holy smokes!".to_string(),
@@ -165,6 +165,7 @@ impl Widget for GraphWidget {
             fill_idx: IndexSlot::new(),
             outline_idx: IndexSlot::new()
         });
+        v0.from.push(&mut *v1);
 
         State {
             graph: Graph { vertices: vec![v0, v1] },
@@ -189,11 +190,61 @@ impl Widget for GraphWidget {
             state.graph.vertices.iter().position(|v| dist(v.position, xy) < radius)
         };
 
+        /// If there is an edge at the given point, this returns its source vertex's
+        /// index, along with the target vertex index within the `to` vector.
+        fn edge_at_point(state: &State, p: Point) -> Option<(usize, usize)> {
+            let width = 6.0; // make the clickable width of the edge bigger than the draw width
+            let halfwidth = width/2.0;
+
+            fn dot(r: Point, s: Point) -> Scalar {
+                r[0]*s[0] + r[1]*s[1]
+            }
+
+            for (vindex, source) in state.graph.vertices.iter().enumerate() {
+                let pos = source.to.iter().position(|&(ref targetptr, _, _)| {
+                    let u = source.position;
+                    let v = unsafe { (**targetptr).position };
+
+                    let uv = [v[0]-u[0], v[1]-u[1]];
+                    let mag_uv = (uv[0]*uv[0] + uv[1]*uv[1]).sqrt();
+                    let norm_uv = [uv[0]/mag_uv, uv[1]/mag_uv];
+
+                    // Let `a` be a corner of the rectangle with neighbors
+                    // `b` and `c`. Let `p` be the point we're testing.
+
+                    // Remember (x, y) => (-y, x) is a 90 degree counterclockwise rotation.
+                    let a = [u[0] - halfwidth * norm_uv[1], u[1] + halfwidth * norm_uv[0]];
+                    let ab = uv;
+                    // Remember (x, y) => (y, -x) is a 90 degree clockwise rotation.
+                    let ac = [width * norm_uv[1], - width * norm_uv[0]];
+                    let ap = [p[0]-a[0], p[1]-a[1]];
+
+                    // Notice that ab and ac are perpendicular sides of the rectangle.
+
+                    // To be inside the rectangle we need the scalar projection of
+                    // ap onto both ab and ac to be positive and not too large.
+                    // So that's what's checked below, it's just written slightly differently
+                    // to turn divisions into multiplications.
+
+                    let tmp1 = dot(ap, ab);
+                    let tmp2 = dot(ap, ac);
+                    return (0_f64 <= tmp1 && tmp1 <= dot(ab, ab)) &&
+                           (0_f64 <= tmp2 && tmp2 <= dot(ac, ac));
+                });
+
+                if let Some(eindex) = pos {
+                    return Some((vindex, eindex));
+                }
+            }
+            return None;
+        }
+
         for widget_event in ui.widget_input(idx).events() {
             use conrod::input::state::mouse;
             use conrod::input::keyboard;
 
             match widget_event {
+
                 event::Widget::Press(event::Press {
                     button: event::Button::Mouse(mouse::Button::Left, xy),
                     modifiers: modifiers
@@ -247,12 +298,42 @@ impl Widget for GraphWidget {
                 },
 
                 event::Widget::Release(release) => {
-                    if let event::Button::Mouse(input::MouseButton::Left, _) = release.button {
-                        if let Mode::CreatingEdge(index, line_slot, arrow_slot, _) = state.mode.clone() {
+                    if let event::Button::Mouse(input::MouseButton::Left, xy) = release.button {
+                        if let Mode::CreatingEdge(src_idx, line_slot, arrow_slot, _) = state.mode.clone() {
+                            if let Some(target_idx) = vertex_at_point(&state, in_widget_space(xy)) {
+                                state.update(|state| {
+                                    let src_ptr: *mut Vertex = &mut *state.graph.vertices[src_idx];
+                                    let target_ptr: *mut Vertex = &mut *state.graph.vertices[target_idx];
+                                    state.graph.vertices[src_idx].to.push((target_ptr, line_slot, arrow_slot));
+                                    state.graph.vertices[target_idx].from.push(src_ptr);
+                                });
+                            }
                         }
                         state.update(|state| state.mode = Mode::Idle);
                     }
                 },
+
+                event::Widget::Press(event::Press {
+                    button: event::Button::Mouse(mouse::Button::Right, xy),
+                    modifiers: modifiers
+                }) => {
+                    if let Mode::Idle = state.mode {
+                        if let Some(vindex) = vertex_at_point(&state, in_widget_space(xy)) {
+                            let ptr1: *const Vertex = &*state.graph.vertices[vindex];
+                            state.update(|state| {
+                                for &other in state.graph.vertices[vindex].from.iter() {
+                                    unsafe { (*other).to.retain(|&(ref ptr2, _, _)| ptr1 != *ptr2); }
+                                }
+
+                                state.graph.vertices.remove(vindex);
+                            });
+                        } else if let Some((vindex, eindex)) = edge_at_point(&state, in_widget_space(xy)) {
+                            state.update(|state| {
+                                (*state.graph.vertices[vindex]).to.remove(eindex);
+                            });
+                        }
+                    }
+                }
 
                 _ => {}
             }
