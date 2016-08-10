@@ -15,8 +15,8 @@ struct Graph {
 }
 
 struct Vertex {
-    to: Vec<(*mut Vertex, IndexSlot, IndexSlot)>,
-    from: Vec<*mut Vertex>,
+    outs: Vec<(*mut Vertex, IndexSlot, IndexSlot)>,
+    ins: Vec<*mut Vertex>,
 
     label: String,
     position: [f64; 2],
@@ -149,8 +149,8 @@ impl Widget for GraphWidget {
 
     fn init_state(&self) -> Self::State {
         let mut v0 = Box::new(Vertex {
-            to: vec![],
-            from: vec![],
+            outs: vec![],
+            ins: vec![],
             label: "Hello world!".to_string(),
             position: [0.0, 0.0],
             fill_idx: IndexSlot::new(),
@@ -158,14 +158,14 @@ impl Widget for GraphWidget {
         });
 
         let mut v1 = Box::new(Vertex {
-            to: vec![(&mut *v0, IndexSlot::new(), IndexSlot::new())],
-            from: vec![],
+            outs: vec![(&mut *v0, IndexSlot::new(), IndexSlot::new())],
+            ins: vec![],
             label: "Holy smokes!".to_string(),
             position: [200.0, 200.0],
             fill_idx: IndexSlot::new(),
             outline_idx: IndexSlot::new()
         });
-        v0.from.push(&mut *v1);
+        v0.ins.push(&mut *v1);
 
         State {
             graph: Graph { vertices: vec![v0, v1] },
@@ -191,7 +191,7 @@ impl Widget for GraphWidget {
         };
 
         /// If there is an edge at the given point, this returns its source vertex's
-        /// index, along with the target vertex index within the `to` vector.
+        /// index, along with the destination vertex's index in the source's `outs` vec.
         fn edge_at_point(state: &State, p: Point) -> Option<(usize, usize)> {
             let width = 6.0; // make the clickable width of the edge bigger than the draw width
             let halfwidth = width/2.0;
@@ -201,7 +201,7 @@ impl Widget for GraphWidget {
             }
 
             for (vindex, source) in state.graph.vertices.iter().enumerate() {
-                let pos = source.to.iter().position(|&(ref targetptr, _, _)| {
+                let pos = source.outs.iter().position(|&(ref targetptr, _, _)| {
                     let u = source.position;
                     let v = unsafe { (**targetptr).position };
 
@@ -262,8 +262,8 @@ impl Widget for GraphWidget {
                         (_, keyboard::SHIFT, None) =>
                             state.update(|state|
                                 state.graph.vertices.push(Box::new(Vertex {
-                                    to: vec![],
-                                    from: vec![],
+                                    outs: vec![],
+                                    ins: vec![],
                                     label: "new node".to_string(),
                                     position: in_widget_space(xy),
                                     fill_idx: IndexSlot::new(),
@@ -307,8 +307,8 @@ impl Widget for GraphWidget {
                                 state.update(|state| {
                                     let src_ptr: *mut Vertex = &mut *state.graph.vertices[src_idx];
                                     let target_ptr: *mut Vertex = &mut *state.graph.vertices[target_idx];
-                                    state.graph.vertices[src_idx].to.push((target_ptr, line_slot, arrow_slot));
-                                    state.graph.vertices[target_idx].from.push(src_ptr);
+                                    state.graph.vertices[src_idx].outs.push((target_ptr, line_slot, arrow_slot));
+                                    state.graph.vertices[target_idx].ins.push(src_ptr);
                                 });
                             }
                         }
@@ -325,11 +325,11 @@ impl Widget for GraphWidget {
                         if let Some(vindex) = vertex_at_point(&state, in_widget_space(xy)) {
                             let p: *const Vertex = &*state.graph.vertices[vindex];
                             state.update(|state| {
-                                for &(other, _, _) in state.graph.vertices[vindex].to.iter() {
-                                    unsafe { (*other).from.retain(|&q| p != q) };
+                                for &(other, _, _) in state.graph.vertices[vindex].outs.iter() {
+                                    unsafe { (*other).ins.retain(|&q| p != q) };
                                 }
-                                for &other in state.graph.vertices[vindex].from.iter() {
-                                    unsafe { (*other).to.retain(|&(q,_,_)| p != q) };
+                                for &other in state.graph.vertices[vindex].ins.iter() {
+                                    unsafe { (*other).outs.retain(|&(q,_,_)| p != q) };
                                 }
 
                                 state.graph.vertices.remove(vindex);
@@ -339,12 +339,12 @@ impl Widget for GraphWidget {
                             state.update(|state| {
                                 let src_ptr: *const Vertex = &mut *state.graph.vertices[vindex];
 
-                                for &other in state.graph.vertices[vindex].from.iter() {
+                                for &other in state.graph.vertices[vindex].ins.iter() {
                                     unsafe {
-                                        (*other).from.retain(|&ptr| src_ptr != ptr);
+                                        (*other).ins.retain(|&ptr| src_ptr != ptr);
                                     }
                                 }
-                                (*state.graph.vertices[vindex]).to.remove(eindex);
+                                (*state.graph.vertices[vindex]).outs.remove(eindex);
                             });
                         }
                     }
@@ -363,7 +363,7 @@ impl Widget for GraphWidget {
         let vertex_fill_color = style.vertex_fill_color(&ui.theme);
         for v in state.graph.vertices.iter() {
             // draw outgoing edges
-            for &(ref v2, ref line_idx, ref tip_idx) in v.to.iter() {
+            for &(ref v2, ref line_idx, ref tip_idx) in v.outs.iter() {
                 draw_arrow(v.position, unsafe { (**v2).position }, &mut ui,
                            style, idx, line_idx, tip_idx, radius);
             }
