@@ -8,6 +8,7 @@ use conrod::{
 };
 
 use conrod;
+use std;
 
 
 struct Graph {
@@ -251,15 +252,15 @@ impl Widget for GraphWidget {
                 }) => {
                     let clicked_vertex = vertex_at_point(&state, in_widget_space(xy)).clone();
 
-                    match (state.mode.clone(), modifiers, clicked_vertex) {
+                    match (&state.mode, modifiers, clicked_vertex) {
                         // start creating edge
-                        (_, keyboard::SHIFT, Some(index)) =>
+                        (&Mode::Idle, keyboard::SHIFT, Some(index)) =>
                             state.update(|state|
                                 state.mode = Mode::CreatingEdge(index, IndexSlot::new(),
                                                                 IndexSlot::new(), in_widget_space(xy))),
 
                         // create node
-                        (_, keyboard::SHIFT, None) =>
+                        (&Mode::Idle, keyboard::SHIFT, None) =>
                             state.update(|state|
                                 state.graph.vertices.push(Box::new(Vertex {
                                     outs: vec![],
@@ -270,8 +271,8 @@ impl Widget for GraphWidget {
                                     outline_idx: IndexSlot::new()}))),
                             
                         // start moving vertex
-                        (Mode::Idle, _, Some(index)) |
-                        (Mode::MovingVertex(_,_), _, Some(index)) =>
+                        (&Mode::Idle, _, Some(index)) |
+                        (&Mode::MovingVertex(_,_), _, Some(index)) =>
                             state.update(|state|
                                 state.mode = Mode::MovingVertex(index, state.graph.vertices[index].position)),
 
@@ -280,20 +281,22 @@ impl Widget for GraphWidget {
                 },
 
                 event::Widget::Drag(drag) if drag.button == input::MouseButton::Left => {
-                    match state.mode.clone() {
-                        Mode::Idle => (),
+                    match &state.mode {
+                        &Mode::Idle => (),
 
                         // move vertex
-                        Mode::MovingVertex(index, vpos) =>
+                        &Mode::MovingVertex(index, vpos) =>
                             state.update(|state| {
                                 (*state.graph.vertices[index]).position = [vpos[0] + drag.total_delta_xy[0], 
                                                                            vpos[1] + drag.total_delta_xy[1]];
                             }),
 
                         // update edge preview
-                        Mode::CreatingEdge(index, line_slot, arrow_slot, _) => {
+                        &Mode::CreatingEdge(_, _, _, _) => {
                             state.update(|state| {
-                                state.mode = Mode::CreatingEdge(index, line_slot, arrow_slot, in_widget_space(drag.to));
+                                if let Mode::CreatingEdge(_, _, _, ref mut position) = state.mode {
+                                    *position = in_widget_space(drag.to);
+                                }
                             });
                         }
                     }
@@ -302,24 +305,43 @@ impl Widget for GraphWidget {
                 event::Widget::Release(release) => {
                     // finish creating edge
                     if let event::Button::Mouse(input::MouseButton::Left, xy) = release.button {
-                        if let Mode::CreatingEdge(src_idx, line_slot, arrow_slot, _) = state.mode.clone() {
-                            if let Some(target_idx) = vertex_at_point(&state, in_widget_space(xy)) {
+                        match &state.mode {
+                            &Mode::CreatingEdge(src_idx, _, _, _) => {
+                                if let Some(target_idx) = vertex_at_point(&state, in_widget_space(xy)) {
 
-                                state.update(|state| {
-                                    let src_ptr: *mut Vertex = &mut *state.graph.vertices[src_idx];
-                                    let target_ptr: *mut Vertex = &mut *state.graph.vertices[target_idx];
+                                    state.update(|state| {
+                                        let src_ptr: *mut Vertex = &mut *state.graph.vertices[src_idx];
+                                        let target_ptr: *mut Vertex = &mut *state.graph.vertices[target_idx];
 
-                                    // don't create redundant edges
-                                    if (*state.graph.vertices[src_idx])
-                                       .outs.iter().all(|&(p,_,_)| p != target_ptr) {
+                                        // don't create redundant edges
+                                        if (*state.graph.vertices[src_idx])
+                                           .outs.iter().all(|&(p,_,_)| p != target_ptr) {
 
-                                        state.graph.vertices[src_idx].outs.push((target_ptr, line_slot, arrow_slot));
-                                        state.graph.vertices[target_idx].ins.push(src_ptr);
-                                    }
-                                });
-                            }
+                                            // steal the index slots from the preview
+                                            let m = std::mem::replace(&mut state.mode, Mode::Idle);
+                                            let (line_slot, arrow_slot) = match m {
+                                                Mode::CreatingEdge(_, line_slot, arrow_slot, _) => (line_slot, arrow_slot),
+                                                _ => unreachable!()
+                                            };
+
+                                            state.graph.vertices[src_idx].outs.push((target_ptr, line_slot, arrow_slot));
+                                            state.graph.vertices[target_idx].ins.push(src_ptr);
+                                        }
+
+                                        state.mode = Mode::Idle;
+                                    });
+                                } else {
+                                    // TODO: free index slots?
+                                    state.update(|state| state.mode = Mode::Idle);
+                                }
+                            },
+
+                            &Mode::MovingVertex(_,_) => {
+                                state.update(|state| state.mode = Mode::Idle);
+                            },
+
+                            &Mode::Idle => ()
                         }
-                        state.update(|state| state.mode = Mode::Idle);
                     }
                 },
 
@@ -328,6 +350,8 @@ impl Widget for GraphWidget {
                     ..
                 }) => {
                     if let Mode::Idle = state.mode {
+                        // TODO: free index slots?
+
                         // remove vertex
                         if let Some(vindex) = vertex_at_point(&state, in_widget_space(xy)) {
                             let p: *const Vertex = &*state.graph.vertices[vindex];
@@ -361,7 +385,7 @@ impl Widget for GraphWidget {
             }
         }
 
-        if let Mode::CreatingEdge(index, line_slot, arrow_slot, target) = state.mode.clone() {
+        if let &Mode::CreatingEdge(index, ref line_slot, ref arrow_slot, target) = &state.mode {
             let start = (*state.graph.vertices[index]).position;
             draw_arrow(start, target, &mut ui, style, idx, &line_slot, &arrow_slot, 0.0);
         }
