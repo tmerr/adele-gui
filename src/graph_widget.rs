@@ -24,6 +24,7 @@ struct Vertex {
     outline_idx: IndexSlot
 }
 
+
 #[derive(Clone)]
 enum Mode {
     // Moving a vertex from an initial location.
@@ -282,12 +283,14 @@ impl Widget for GraphWidget {
                     match state.mode.clone() {
                         Mode::Idle => (),
 
+                        // move vertex
                         Mode::MovingVertex(index, vpos) =>
                             state.update(|state| {
-                                (*state.graph.vertices[index]).position[0] = vpos[0] + drag.total_delta_xy[0];
-                                (*state.graph.vertices[index]).position[1] = vpos[1] + drag.total_delta_xy[1];
+                                (*state.graph.vertices[index]).position = [vpos[0] + drag.total_delta_xy[0], 
+                                                                           vpos[1] + drag.total_delta_xy[1]];
                             }),
 
+                        // update edge preview
                         Mode::CreatingEdge(index, line_slot, arrow_slot, _) => {
                             state.update(|state| {
                                 state.mode = Mode::CreatingEdge(index, line_slot, arrow_slot, in_widget_space(drag.to));
@@ -297,6 +300,7 @@ impl Widget for GraphWidget {
                 },
 
                 event::Widget::Release(release) => {
+                    // finish creating edge
                     if let event::Button::Mouse(input::MouseButton::Left, xy) = release.button {
                         if let Mode::CreatingEdge(src_idx, line_slot, arrow_slot, _) = state.mode.clone() {
                             if let Some(target_idx) = vertex_at_point(&state, in_widget_space(xy)) {
@@ -317,17 +321,29 @@ impl Widget for GraphWidget {
                     ..
                 }) => {
                     if let Mode::Idle = state.mode {
+                        // remove vertex
                         if let Some(vindex) = vertex_at_point(&state, in_widget_space(xy)) {
-                            let ptr1: *const Vertex = &*state.graph.vertices[vindex];
+                            let p: *const Vertex = &*state.graph.vertices[vindex];
                             state.update(|state| {
+                                for &(other, _, _) in state.graph.vertices[vindex].to.iter() {
+                                    unsafe { (*other).from.retain(|&q| p != q) };
+                                }
                                 for &other in state.graph.vertices[vindex].from.iter() {
-                                    unsafe { (*other).to.retain(|&(ref ptr2, _, _)| ptr1 != *ptr2); }
+                                    unsafe { (*other).to.retain(|&(q,_,_)| p != q) };
                                 }
 
                                 state.graph.vertices.remove(vindex);
                             });
+                        // remove edge
                         } else if let Some((vindex, eindex)) = edge_at_point(&state, in_widget_space(xy)) {
                             state.update(|state| {
+                                let src_ptr: *const Vertex = &mut *state.graph.vertices[vindex];
+
+                                for &other in state.graph.vertices[vindex].from.iter() {
+                                    unsafe {
+                                        (*other).from.retain(|&ptr| src_ptr != ptr);
+                                    }
+                                }
                                 (*state.graph.vertices[vindex]).to.remove(eindex);
                             });
                         }
