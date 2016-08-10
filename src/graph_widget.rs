@@ -304,11 +304,18 @@ impl Widget for GraphWidget {
                     if let event::Button::Mouse(input::MouseButton::Left, xy) = release.button {
                         if let Mode::CreatingEdge(src_idx, line_slot, arrow_slot, _) = state.mode.clone() {
                             if let Some(target_idx) = vertex_at_point(&state, in_widget_space(xy)) {
+
                                 state.update(|state| {
                                     let src_ptr: *mut Vertex = &mut *state.graph.vertices[src_idx];
                                     let target_ptr: *mut Vertex = &mut *state.graph.vertices[target_idx];
-                                    state.graph.vertices[src_idx].outs.push((target_ptr, line_slot, arrow_slot));
-                                    state.graph.vertices[target_idx].ins.push(src_ptr);
+
+                                    // don't create redundant edges
+                                    if (*state.graph.vertices[src_idx])
+                                       .outs.iter().all(|&(p,_,_)| p != target_ptr) {
+
+                                        state.graph.vertices[src_idx].outs.push((target_ptr, line_slot, arrow_slot));
+                                        state.graph.vertices[target_idx].ins.push(src_ptr);
+                                    }
                                 });
                             }
                         }
