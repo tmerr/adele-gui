@@ -63,6 +63,5 @@ fn set_ui(ui: &mut conrod::UiCell) {
 
 widget_ids! {
     MASTER,
-    OVAL with 10,
     GRAPH
 }
