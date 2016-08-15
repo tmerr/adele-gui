@@ -1,8 +1,8 @@
 use conrod::{
     Widget, CommonBuilder, UpdateArgs, color, IndexSlot,
-    Line, Oval, Polygon,
+    Line, Oval, Polygon, TextBox,
     LineStyle,
-    Colorable, Positionable,
+    Colorable, Positionable, Sizeable,
     event, input,
     Point, Scalar
 };
@@ -22,7 +22,8 @@ struct Vertex {
     label: String,
     position: [f64; 2],
     fill_idx: IndexSlot,
-    outline_idx: IndexSlot
+    outline_idx: IndexSlot,
+    text_idx: IndexSlot
 }
 
 
@@ -45,7 +46,7 @@ pub struct State {
 
 widget_style!{
     style Style {
-        - vertex_radius: Scalar { 25.0 }
+        - vertex_radius: Scalar { 35.0 }
         - vertex_outline_color: color::Color { color::rgb(0.2, 0.2, 0.2) }
         - vertex_fill_color: color::Color { color::rgb(0.99, 0.99, 1.0) }
 
@@ -155,7 +156,8 @@ impl Widget for GraphWidget {
             label: "Hello world!".to_string(),
             position: [0.0, 0.0],
             fill_idx: IndexSlot::new(),
-            outline_idx: IndexSlot::new()
+            outline_idx: IndexSlot::new(),
+            text_idx: IndexSlot::new()
         });
 
         let mut v1 = Box::new(Vertex {
@@ -164,7 +166,8 @@ impl Widget for GraphWidget {
             label: "Holy smokes!".to_string(),
             position: [200.0, 200.0],
             fill_idx: IndexSlot::new(),
-            outline_idx: IndexSlot::new()
+            outline_idx: IndexSlot::new(),
+            text_idx: IndexSlot::new()
         });
         v0.ins.push(&mut *v1);
 
@@ -268,7 +271,8 @@ impl Widget for GraphWidget {
                                     label: "new node".to_string(),
                                     position: in_widget_space(xy),
                                     fill_idx: IndexSlot::new(),
-                                    outline_idx: IndexSlot::new()}))),
+                                    outline_idx: IndexSlot::new(),
+                                    text_idx: IndexSlot::new()}))),
                             
                         // start moving vertex
                         (&Mode::Idle, _, Some(index)) |
@@ -392,28 +396,40 @@ impl Widget for GraphWidget {
 
         let vertex_outline_color = style.vertex_outline_color(&ui.theme);
         let vertex_fill_color = style.vertex_fill_color(&ui.theme);
-        for v in state.graph.vertices.iter() {
-            // draw outgoing edges
-            for &(ref v2, ref line_idx, ref tip_idx) in v.outs.iter() {
-                draw_arrow(v.position, unsafe { (**v2).position }, &mut ui,
-                           style, idx, line_idx, tip_idx, radius);
+        
+        state.update(|state| { // need mutation for the TextBox
+            for v in state.graph.vertices.iter_mut() {
+                // draw outgoing edges
+                for &(ref v2, ref line_idx, ref tip_idx) in v.outs.iter() {
+                    draw_arrow(v.position, unsafe { (**v2).position }, &mut ui,
+                               style, idx, line_idx, tip_idx, radius);
+                }
+
+                // draw the vertex
+                Oval::fill([radius*2.0, radius*2.0])
+                    .xy(v.position)
+                    .color(vertex_fill_color)
+                    .graphics_for(idx)
+                    .parent(idx)
+                    .set(v.fill_idx.get(&mut ui), &mut ui);
+
+                let linestyle = LineStyle::new().thickness(2.0);
+                Oval::outline_styled([radius*2.0, radius*2.0], linestyle)
+                    .xy(v.position)
+                    .color(vertex_outline_color)
+                    .graphics_for(idx)
+                    .parent(idx)
+                    .set(v.outline_idx.get(&mut ui), &mut ui);
+
+                let position = v.position.clone();
+                let i = v.text_idx.get(&mut ui);
+                TextBox::new(&mut v.label)
+                    .react(|_: &mut String| ())
+                    .wh([150_f64, 25_f64])
+                    .xy(position)
+                    .parent(idx)
+                    .set(i, &mut ui);
             }
-
-            // draw the vertex
-            Oval::fill([radius*2.0, radius*2.0])
-                .xy(v.position)
-                .color(vertex_fill_color)
-                .graphics_for(idx)
-                .parent(idx)
-                .set(v.fill_idx.get(&mut ui), &mut ui);
-
-            let linestyle = LineStyle::new().thickness(2.0);
-            Oval::outline_styled([radius*2.0, radius*2.0], linestyle)
-                .xy(v.position)
-                .color(vertex_outline_color)
-                .graphics_for(idx)
-                .parent(idx)
-                .set(v.outline_idx.get(&mut ui), &mut ui);
-        }
+        });
     }
 }
