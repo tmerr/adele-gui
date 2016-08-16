@@ -2,7 +2,8 @@
 extern crate piston_window;
 extern crate find_folder;
 
-use conrod::{Canvas, Widget, color};
+use conrod::widget::{Canvas, Widget};
+use conrod::color;
 use piston_window::{EventLoop, OpenGL, PistonWindow, UpdateEvent, WindowSettings};
 
 mod graph_widget;
@@ -18,7 +19,7 @@ fn main() {
                                    .opengl(opengl).exit_on_esc(true).build().unwrap();
     window.set_ups(60);
 
-    let mut ui = conrod::Ui::new(conrod::Theme::default());
+    let mut ui = conrod::UiBuilder::new().build();
 
     let assets = find_folder::Search::KidsThenParents(5, 5).for_folder("assets").unwrap();
     let font_path = assets.join("Hack-Regular.ttf");
@@ -34,13 +35,14 @@ fn main() {
             ui.handle_event(e);
         }
 
-        event.update(|_| ui.set_widgets(|mut ui_cell| set_ui(&mut ui_cell)));
+        event.update(|_| set_ui(&mut ui.set_widgets()));
 
         window.draw_2d(&event, |c, g| {
-            if let Some(primitives) = ui.draw_if_changed(&image_map) {
+            if let Some(primitives) = ui.draw_if_changed() {
                 fn texture_from_image<T>(img: &T) -> &T { img };
                 conrod::backend::piston_window::draw(c, g, primitives,
                                                      &mut text_texture_cache,
+                                                     &image_map,
                                                      texture_from_image);
             }
         });

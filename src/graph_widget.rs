@@ -1,11 +1,12 @@
-use conrod::{
-    Widget, CommonBuilder, UpdateArgs, color, IndexSlot,
-    Line, Oval, Polygon, TextBox,
-    LineStyle,
-    Colorable, Positionable, Sizeable,
-    event, input,
-    Point, Scalar
-};
+use conrod::{color, event, input, Point, Scalar};
+
+use conrod::color::Colorable;
+use conrod::{Positionable, Sizeable};
+
+use conrod::widget;
+use conrod::widget::Widget;
+use conrod::widget::primitive;
+use conrod::widget::IndexSlot;
 
 use conrod;
 use std;
@@ -57,14 +58,14 @@ widget_style!{
 }
 
 pub struct GraphWidget {
-    common: CommonBuilder,
+    common: widget::CommonBuilder,
     style: Style
 }
 
 impl GraphWidget {
     pub fn new() -> Self {
         GraphWidget {
-            common: CommonBuilder::new(),
+            common: widget::CommonBuilder::new(),
             style: Style::new()
         }
     }
@@ -79,7 +80,7 @@ fn dist(a: Point, b: Point) -> Scalar {
 
 
 fn draw_arrow(start: Point, end: Point, ui: &mut conrod::UiCell, style: &Style,
-              parent_idx: conrod::WidgetIndex, line_idx: &IndexSlot, tip_idx: &IndexSlot,
+              parent_idx: widget::Index, line_idx: &IndexSlot, tip_idx: &IndexSlot,
               subtract: Scalar) {
     let arrow_height = style.arrow_height(&ui.theme);
 
@@ -123,14 +124,14 @@ fn draw_arrow(start: Point, end: Point, ui: &mut conrod::UiCell, style: &Style,
     ];
     
     let edge_color = style.edge_color(&ui.theme);
-    Line::abs(start, new_to)
+    primitive::line::Line::abs(start, new_to)
         .color(edge_color)
         .thickness(2.0)
         .graphics_for(parent_idx)
         .parent(parent_idx)
         .set(line_idx.get(ui), ui);
 
-    Polygon::fill(triangle)
+    primitive::shape::polygon::Polygon::fill(triangle)
         .color(edge_color)
         .graphics_for(parent_idx)
         .parent(parent_idx)
@@ -140,12 +141,13 @@ fn draw_arrow(start: Point, end: Point, ui: &mut conrod::UiCell, style: &Style,
 impl Widget for GraphWidget {
     type State = State;
     type Style = Style;
+    type Event = ();
 
-    fn common(&self) -> &CommonBuilder {
+    fn common(&self) -> &widget::CommonBuilder {
         &self.common
     }
 
-    fn common_mut(&mut self) -> &mut CommonBuilder {
+    fn common_mut(&mut self) -> &mut widget::CommonBuilder {
         &mut self.common
     }
 
@@ -181,8 +183,8 @@ impl Widget for GraphWidget {
         self.style.clone()
     }
 
-    fn update(self, args: UpdateArgs<Self>) {
-        let UpdateArgs { idx, state, style, rect, mut ui, ..} = args;
+    fn update(self, args: widget::UpdateArgs<Self>) {
+        let widget::UpdateArgs { idx, state, style, rect, mut ui, ..} = args;
 
         let radius = style.vertex_radius(&ui.theme);
 
@@ -399,6 +401,7 @@ impl Widget for GraphWidget {
         
         state.update(|state| { // need mutation for the TextBox
             for v in state.graph.vertices.iter_mut() {
+
                 // draw outgoing edges
                 for &(ref v2, ref line_idx, ref tip_idx) in v.outs.iter() {
                     draw_arrow(v.position, unsafe { (**v2).position }, &mut ui,
@@ -406,15 +409,15 @@ impl Widget for GraphWidget {
                 }
 
                 // draw the vertex
-                Oval::fill([radius*2.0, radius*2.0])
+                primitive::shape::oval::Oval::fill([radius*2.0, radius*2.0])
                     .xy(v.position)
                     .color(vertex_fill_color)
                     .graphics_for(idx)
                     .parent(idx)
                     .set(v.fill_idx.get(&mut ui), &mut ui);
 
-                let linestyle = LineStyle::new().thickness(2.0);
-                Oval::outline_styled([radius*2.0, radius*2.0], linestyle)
+                let linestyle = primitive::line::Style::new().thickness(2.0);
+                primitive::shape::oval::Oval::outline_styled([radius*2.0, radius*2.0], linestyle)
                     .xy(v.position)
                     .color(vertex_outline_color)
                     .graphics_for(idx)
@@ -426,14 +429,19 @@ impl Widget for GraphWidget {
                 let font_size = 12_u32;
                 let char_width = (font_size as f64) * 0.692;
                 let box_width = 30.0 + char_width * (v.label.len() as f64);
-                TextBox::new(&mut v.label)
-                    .react(|_: &mut String| ())
+                for event in widget::text_box::TextBox::new(&mut v.label)
                     .xy(position)
                     .wh([box_width, 25_f64])
                     .font_size(font_size)
                     .align_text_middle()
                     .parent(idx)
-                    .set(i, &mut ui);
+                    .set(i, &mut ui)
+                {
+                    match event {
+                        widget::text_box::Event::Update(string) => v.label = string,
+                        _ => ()
+                    }
+                }
             }
         });
     }
