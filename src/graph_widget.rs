@@ -423,10 +423,15 @@ impl Widget for GraphWidget {
 
                 let position = v.position.clone();
                 let i = v.text_idx.get(&mut ui);
+                let font_size = 12_u32;
+                let char_width = (font_size as f64) * 0.692;
+                let box_width = 30.0 + char_width * (v.label.len() as f64);
                 TextBox::new(&mut v.label)
                     .react(|_: &mut String| ())
-                    .wh([150_f64, 25_f64])
                     .xy(position)
+                    .wh([box_width, 25_f64])
+                    .font_size(font_size)
+                    .align_text_middle()
                     .parent(idx)
                     .set(i, &mut ui);
             }

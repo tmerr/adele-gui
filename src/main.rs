@@ -21,7 +21,7 @@ fn main() {
     let mut ui = conrod::Ui::new(conrod::Theme::default());
 
     let assets = find_folder::Search::KidsThenParents(5, 5).for_folder("assets").unwrap();
-    let font_path = assets.join("NotoSans-Regular.ttf");
+    let font_path = assets.join("Hack-Regular.ttf");
     ui.fonts.insert_from_file(font_path).unwrap();
 
     let mut text_texture_cache =
