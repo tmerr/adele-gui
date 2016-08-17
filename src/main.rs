@@ -3,6 +3,7 @@ extern crate piston_window;
 extern crate find_folder;
 
 use conrod::widget::primitive::shape::rectangle::Rectangle;
+use conrod::widget::primitive::text::Text;
 use conrod::widget::{Canvas, Widget, TextEdit};
 use conrod::Sizeable;
 use conrod::color;
@@ -35,14 +36,14 @@ fn main() {
 
     let image_map = conrod::image::Map::new();
 
-    let mut boxtext = "Some text goes here".to_string();
+    let mut typetext = "Type text goes here".to_string();
 
     while let Some(event) = window.next()  {
         if let Some(e) = conrod::backend::piston_window::convert_event(event.clone(), &window) {
             ui.handle_event(e);
         }
 
-        event.update(|_| set_ui(&mut ui.set_widgets(), &mut boxtext));
+        event.update(|_| set_ui(&mut ui.set_widgets(), &mut typetext));
 
         window.draw_2d(&event, |c, g| {
             if let Some(primitives) = ui.draw_if_changed() {
@@ -58,13 +59,18 @@ fn main() {
 
 
 
-fn set_ui(ui: &mut conrod::UiCell, boxtext: &mut String) {
+fn set_ui(ui: &mut conrod::UiCell, typetext: &mut String) {
     use conrod::{Colorable, Positionable};
 
-    let divider = 0.7_f64;
-    let left_width = divider * (WIDTH as f64);
-    let right_width = (1.0 - divider) * (WIDTH as f64);
-    let height = HEIGHT as f64;
+    let hdivide = 0.7_f64;
+    let left_width = hdivide * (WIDTH as f64);
+    let right_width = (1.0 - hdivide) * (WIDTH as f64);
+
+    let vdivide = 0.6_f64;
+    let vgap = 6.0;
+    let top_height = vdivide * (HEIGHT as f64) - 3.0*vgap/2.0;
+    let bottom_height = (1.0 - vdivide) * (HEIGHT as f64) - 3.0*vgap/2.0;
+
     let textmargin = 10.0;
     let fontsize = 12_u32;
 
@@ -77,24 +83,39 @@ fn set_ui(ui: &mut conrod::UiCell, boxtext: &mut String) {
         .w_h(left_width, 720_f64)
         .set(GRAPH, ui);
 
-    Rectangle::fill_with([right_width, height], color::rgb(0.9, 0.9, 0.9))
-        .mid_right_of(MASTER)
-        .set(TEXTEDIT_BG, ui);
+    Rectangle::fill_with([right_width, top_height], color::rgb(0.9, 0.9, 0.9))
+        .top_right_with_margins_on(MASTER, vgap, 0.0)
+        .set(TYPE_TEXT_BG, ui);
 
-    for edit in TextEdit::new(boxtext)
-        .top_right_with_margin(textmargin)
-        .w_h(right_width - 2.0*textmargin, height - 2.0*textmargin)
+    for edit in TextEdit::new(typetext)
+        .top_right_with_margin_on(TYPE_TEXT_BG, textmargin)
+        .w_h(right_width - 2.0*textmargin, top_height - 2.0*textmargin)
         .font_size(fontsize)
         .color(color::BLACK)
-        .set(TEXTEDIT, ui)
+        .set(TYPE_TEXT, ui)
     {
-        *boxtext = edit;
+        *typetext = edit;
     }
+
+    Rectangle::fill_with([right_width, bottom_height], color::rgb(0.9, 0.9, 0.9))
+        .bottom_right_with_margins_on(MASTER, vgap, 0.0)
+        .set(GRAPH_TEXT_BG, ui);
+
+    Text::new("Graph text goes here")
+        .top_right_with_margin_on(GRAPH_TEXT_BG, textmargin)
+        .w_h(right_width - 2.0*textmargin, bottom_height - 2.0*textmargin)
+        .font_size(fontsize)
+        .color(color::BLACK)
+        .wrap_by_word()
+        .align_text_left()
+        .set(GRAPH_TEXT, ui);
 }
 
 widget_ids! {
     MASTER,
     GRAPH,
-    TEXTEDIT_BG,
-    TEXTEDIT
+    TYPE_TEXT_BG,
+    TYPE_TEXT,
+    GRAPH_TEXT_BG,
+    GRAPH_TEXT
 }
