@@ -156,7 +156,7 @@ impl Widget for GraphWidget {
             outs: vec![],
             ins: vec![],
             label: "Hello world!".to_string(),
-            position: [0.0, 0.0],
+            position: [-200.0, -100.0],
             fill_idx: IndexSlot::new(),
             outline_idx: IndexSlot::new(),
             text_idx: IndexSlot::new()
@@ -166,7 +166,7 @@ impl Widget for GraphWidget {
             outs: vec![(&mut *v0, IndexSlot::new(), IndexSlot::new())],
             ins: vec![],
             label: "Holy smokes!".to_string(),
-            position: [200.0, 200.0],
+            position: [-200.0, 100.0],
             fill_idx: IndexSlot::new(),
             outline_idx: IndexSlot::new(),
             text_idx: IndexSlot::new()
@@ -194,6 +194,14 @@ impl Widget for GraphWidget {
 
         let vertex_at_point = |state: &State, xy: Point| {
             state.graph.vertices.iter().position(|v| dist(v.position, xy) < radius)
+        };
+
+        // Clamp a point within this widget's rectangle.
+        // The coordinates are in widget space.
+        let clamp = |xy: Point, padding: Scalar| {
+            let x = rect.x.pad(padding).clamp_value(xy[0]);
+            let y = rect.y.pad(padding).clamp_value(xy[1]);
+            [x, y]
         };
 
         /// If there is an edge at the given point, this returns its source vertex's
@@ -255,7 +263,7 @@ impl Widget for GraphWidget {
                     button: event::Button::Mouse(mouse::Button::Left, xy),
                     modifiers
                 }) => {
-                    let clicked_vertex = vertex_at_point(&state, in_widget_space(xy)).clone();
+                    let clicked_vertex = vertex_at_point(&state, in_widget_space(xy));
 
                     match (&state.mode, modifiers, clicked_vertex) {
                         // start creating edge
@@ -271,7 +279,7 @@ impl Widget for GraphWidget {
                                     outs: vec![],
                                     ins: vec![],
                                     label: "new node".to_string(),
-                                    position: in_widget_space(xy),
+                                    position: clamp(in_widget_space(xy), radius),
                                     fill_idx: IndexSlot::new(),
                                     outline_idx: IndexSlot::new(),
                                     text_idx: IndexSlot::new()}))),
@@ -293,15 +301,17 @@ impl Widget for GraphWidget {
                         // move vertex
                         &Mode::MovingVertex(index, vpos) =>
                             state.update(|state| {
-                                (*state.graph.vertices[index]).position = [vpos[0] + drag.total_delta_xy[0], 
-                                                                           vpos[1] + drag.total_delta_xy[1]];
+                                let new_vpos = [vpos[0] + drag.total_delta_xy[0],
+                                                vpos[1] + drag.total_delta_xy[1]];
+                                let clamped = clamp(new_vpos, radius);
+                                (*state.graph.vertices[index]).position = clamped;
                             }),
 
                         // update edge preview
                         &Mode::CreatingEdge(_, _, _, _) => {
                             state.update(|state| {
                                 if let Mode::CreatingEdge(_, _, _, ref mut position) = state.mode {
-                                    *position = in_widget_space(drag.to);
+                                    *position = clamp(in_widget_space(drag.to), 0.0);
                                 }
                             });
                         }
