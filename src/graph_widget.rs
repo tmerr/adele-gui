@@ -78,6 +78,29 @@ fn dist(a: Point, b: Point) -> Scalar {
     (dx*dx + dy*dy).sqrt()
 }
 
+// Note: The vertices are listed in the order that they are stored in the graph.
+fn graph_to_string(g: &Graph) -> String {
+    fn join<'a, I>(mut input: I, separator: &str) -> String
+    where I: Iterator<Item=&'a str> {
+        let first = input.next().unwrap_or(&"").to_string();
+        input.fold(first, |acc, s| acc + separator + s)
+    }
+
+    let dec_lines: Vec<_> = g.vertices.iter().map(|v| v.label.clone() + ";").collect();
+    let declarations: String = join(dec_lines.iter().map(|d| d.as_str()), "\n");
+    let con_lines: Vec<_> = g.vertices.iter()
+        .flat_map(|source| {
+            source.outs.iter().map(move |target| {
+                let left = (**source).label.clone();
+                let right = unsafe { (*target.0).label.as_str() };
+                left + " => " + right + ";"
+            })
+        }).collect();
+    let connections = join(con_lines.iter().map(|c| c.as_str()), "\n");
+    
+    declarations + "\n\n" + &connections
+}
+
 
 fn draw_arrow(start: Point, end: Point, ui: &mut conrod::UiCell, style: &Style,
               parent_idx: widget::Index, line_idx: &IndexSlot, tip_idx: &IndexSlot,
@@ -141,7 +164,7 @@ fn draw_arrow(start: Point, end: Point, ui: &mut conrod::UiCell, style: &Style,
 impl Widget for GraphWidget {
     type State = State;
     type Style = Style;
-    type Event = ();
+    type Event = String;
 
     fn common(&self) -> &widget::CommonBuilder {
         &self.common
@@ -183,7 +206,7 @@ impl Widget for GraphWidget {
         self.style.clone()
     }
 
-    fn update(self, args: widget::UpdateArgs<Self>) {
+    fn update(self, args: widget::UpdateArgs<Self>) -> Self::Event {
         let widget::UpdateArgs { idx, state, style, rect, mut ui, ..} = args;
 
         let radius = style.vertex_radius(&ui.theme);
@@ -453,6 +476,10 @@ impl Widget for GraphWidget {
                     }
                 }
             }
+
+            state.graph.vertices.sort_by(|a, b| a.label.cmp(&b.label));
         });
+
+        graph_to_string(&state.graph)
     }
 }

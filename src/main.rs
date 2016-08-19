@@ -58,7 +58,6 @@ fn main() {
 }
 
 
-
 fn set_ui(ui: &mut conrod::UiCell, typetext: &mut String) {
     use conrod::{Colorable, Positionable};
 
@@ -78,7 +77,7 @@ fn set_ui(ui: &mut conrod::UiCell, typetext: &mut String) {
         .color(color::rgb(0.97, 0.97, 0.97))
         .set(MASTER, ui);
 
-    GraphWidget::new()
+    let graphtext: String = GraphWidget::new()
         .mid_left_of(MASTER)
         .w_h(left_width, 720_f64)
         .set(GRAPH, ui);
@@ -101,7 +100,7 @@ fn set_ui(ui: &mut conrod::UiCell, typetext: &mut String) {
         .bottom_right_with_margins_on(MASTER, vgap, 0.0)
         .set(GRAPH_TEXT_BG, ui);
 
-    Text::new("Graph text goes here")
+    Text::new(&graphtext[..])
         .top_right_with_margin_on(GRAPH_TEXT_BG, textmargin)
         .w_h(right_width - 2.0*textmargin, bottom_height - 2.0*textmargin)
         .font_size(fontsize)
